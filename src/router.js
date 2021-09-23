@@ -1,66 +1,42 @@
-var setPrototypeOf = require('setprototypeof')
-var methods = require('methods');
-var Router = require('./router');
-var Layer = require('./Layer')
-var slice = Array.prototype.slice;
-var http = require('http');
+var setPrototypeOf = require('setprototypeof');
+var Route = require('./route');
+var Layer = require('./Layer');
 
-var app = exports = module.exports = {};
+var proto = module.exports = function(options) {
+    var opts = options || {}
 
-app.init = function() {
-    this.cache = {};
-    this.engines = {};
-    this.settings = {}
-
-    this._router = undefined;
-};
-
-app.set = function set(setting,val) {
-    this.settings[setting] = val;
-
-    switch (setting) {
-        case 'etag':
-            this.set('etag fn',"")
-            break;
-        case 'query parser':
-            this.set('query parser fn',"")
-            break
-        case 'trust proxy':
-            this.set('trust proxy fn',"");
-            break;
+    function router(req,res,next) {
+        router.handle(req,res,next)
     }
 
-    return this;
+    setPrototypeOf(router, proto)
+
+    router.params = {};
+    router._params = [];
+    router.caseSensitive = opts.caseSensitive;
+    router.mergeParams = opts.mergeParams;
+    router.strict = opts.strict;
+    router.stack = [];
+
+    return router;
 };
 
-app.enabled = function enabled(setting) {
-    return Boolean(this.set(setting));
+proto.route = function route(path) {
+    var route = new Route(path)
+
+    var layer = new Layer(path,{},route.dispatch.bind(route))
+
+    layer.route = route;
+
+    this.stack.push(layer);
+
+    return route;
 };
 
-app.lazyrouter = function lazyrouter() {
-    if(!this._router) {
-        this._router = new Router({})
-    }
-};
-
-app.listen = function listen() {
-    var server = http.createServer(this);
-    return server.listen.apply(server, arguments);
-};
-
-app.handle = function handle(req, res, callback) {
-    var router = this._router;
-
-    router.handle(req, res);
-};
-
-methods.forEach(function (method){
-    app[method] = function(path) {
-        this.lazyrouter()
-
-        var route = this._router.route(path);
-
-        route[method].apply(route, slice.call(arguments, 1));
-        return this;
-    }
-});
+proto.handle = function handle(req, res, out) {
+    var self = this;
+    var stack = self.stack;
+    var layer = stack[0];
+    var route = layer.route;
+    route.stack[0].handle_request(req, res);
+}

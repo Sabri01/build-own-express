@@ -1,28 +1,17 @@
-   
-module.exports = Layer
+var mixin = require('merge-descriptors');
+var proto = require("./app")
 
-function Layer(path, options, fn) {
-    if (!(this instanceof Layer)) {
-        return new Layer(path, options, fn);
-    }
+exports = module.exports = createApplication;
 
-    this.handle = fn;
-    this.name = fn.name || '<anonymous>';
-    this.params = undefined;
-    this.path = undefined;
+function createApplication() {
+    let app = function(req,res,next) {
+        app.handle(req,res,next)
+    };
+
+    mixin(app,proto,false);
+
+    app.init();
+    return app;
 }
 
-
-Layer.prototype.match = function match(path) {
-    return this.route.path === path;
-};
-
-Layer.prototype.handle_request = function handle(req,res,next) {
-    var fn = this.handle;
-
-    try {
-        fn(req, res, next);
-    } catch (err) {
-        console.error(err)
-    }
-}
+exports.application = proto;

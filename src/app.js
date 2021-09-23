@@ -1,27 +1,66 @@
-module.exports = Layer
+var setPrototypeOf = require('setprototypeof')
+var methods = require('methods');
+var Router = require('./router');
+var Layer = require('./Layer')
+var slice = Array.prototype.slice;
+var http = require('http');
 
-function Layer(path, options, fn) {
-    if (!(this instanceof Layer)) {
-        return new Layer(path, options, fn);
-    }
+var app = exports = module.exports = {};
 
-    this.handle = fn;
-    this.name = fn.name || '<anonymous>';
-    this.params = undefined;
-    this.path = undefined;
-}
+app.init = function() {
+    this.cache = {};
+    this.engines = {};
+    this.settings = {}
 
-
-Layer.prototype.match = function match(path) {
-    return this.route.path === path;
+    this._router = undefined;
 };
 
-Layer.prototype.handle_request = function handle(req,res,next) {
-    var fn = this.handle;
+app.set = function set(setting,val) {
+    this.settings[setting] = val;
 
-    try {
-        fn(req, res, next);
-    } catch (err) {
-        console.error(err)
+    switch (setting) {
+        case 'etag':
+            this.set('etag fn',"")
+            break;
+        case 'query parser':
+            this.set('query parser fn',"")
+            break
+        case 'trust proxy':
+            this.set('trust proxy fn',"");
+            break;
     }
-}
+
+    return this;
+};
+
+app.enabled = function enabled(setting) {
+    return Boolean(this.set(setting));
+};
+
+app.lazyrouter = function lazyrouter() {
+    if(!this._router) {
+        this._router = new Router({})
+    }
+};
+
+app.listen = function listen() {
+    var server = http.createServer(this);
+    return server.listen.apply(server, arguments);
+};
+
+app.handle = function handle(req, res, callback) {
+    var router = this._router;
+
+    router.handle(req, res);
+};
+
+methods.forEach(function (method){
+    app[method] = function(path) {
+        this.lazyrouter()
+
+        var route = this._router.route(path);
+
+        route[method].apply(route, slice.call(arguments, 1));
+        return this;
+    }
+});

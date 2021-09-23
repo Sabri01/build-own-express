@@ -1,39 +1,66 @@
-module.exports = Route;
+var setPrototypeOf = require('setprototypeof')
 var methods = require('methods');
-var flatten = require('array-flatten');
+var Router = require('./router');
 var Layer = require('./Layer')
+var slice = Array.prototype.slice;
+var http = require('http');
 
-function Route(path) {
-    this.path = path;
-    this.stack = [];
+var app = exports = module.exports = {};
 
-    this.methods = {}
-}
+app.init = function() {
+    this.cache = {};
+    this.engines = {};
+    this.settings = {}
 
-Route.prototype.dispatch = function dispatch(req,res,done) {
-
+    this._router = undefined;
 };
 
-methods.forEach(function(method){
-    Route.prototype[method] = function(){
-        var handles = flatten(Array.prototype.slice.call(arguments));
+app.set = function set(setting,val) {
+    this.settings[setting] = val;
 
-        for (var i = 0; i < handles.length; i++) {
-            var handle = handles[i];
+    switch (setting) {
+        case 'etag':
+            this.set('etag fn',"")
+            break;
+        case 'query parser':
+            this.set('query parser fn',"")
+            break
+        case 'trust proxy':
+            this.set('trust proxy fn',"");
+            break;
+    }
 
-            if (typeof handle !== 'function') {
-                var type = toString.call(handle);
-                var msg = 'Route.' + method + '() requires a callback function but got a ' + type
-                throw new Error(msg);
-            }
+    return this;
+};
 
-            var layer = Layer('/', {}, handle);
-            layer.method = method;
+app.enabled = function enabled(setting) {
+    return Boolean(this.set(setting));
+};
 
-            this.methods[method] = true;
-            this.stack.push(layer);
-        }
+app.lazyrouter = function lazyrouter() {
+    if(!this._router) {
+        this._router = new Router({})
+    }
+};
 
+app.listen = function listen() {
+    var server = http.createServer(this);
+    return server.listen.apply(server, arguments);
+};
+
+app.handle = function handle(req, res, callback) {
+    var router = this._router;
+
+    router.handle(req, res);
+};
+
+methods.forEach(function (method){
+    app[method] = function(path) {
+        this.lazyrouter()
+
+        var route = this._router.route(path);
+
+        route[method].apply(route, slice.call(arguments, 1));
         return this;
-    };
+    }
 });
